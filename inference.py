@@ -334,10 +334,22 @@ class Simulation(Dataset):
         # simulation and templates
         self.simu_pkl = pickle.load(open(args.traj_path, 'rb'))
         self.garment_names = self.simu_pkl['garment_names']
+        if not self.garment_names or any(
+            not isinstance(name, str) or not name or name in ('.', '..')
+            or '/' in name or '\\' in name for name in self.garment_names
+        ):
+            raise ValueError('trajectory must contain explicit, valid garment_names in vertex order')
 
         models_root = Path(DEFAULTS.output_root)
         uv_tmp_path = [models_root / name / DEFAULTS.stage1 / 'template_uv.obj' for name in self.garment_names]
         self.uv_tmp_list = [read_obj(path) for path in uv_tmp_path]
+        expected_vertices = sum(len(mesh['vertices']) for mesh in self.uv_tmp_list)
+        if not len(self.simu_pkl['pred']) or any(
+            len(frame) != expected_vertices for frame in self.simu_pkl['pred']
+        ):
+            raise ValueError('trajectory vertex count does not match the ordered UV templates')
+        if len(self.simu_pkl['pred']) != len(self.simu_pkl['obstacle']):
+            raise ValueError('garment and body trajectories must have the same frame count')
         # camera info
 
         cam_params_path = models_root / self.garment_names[0] / DEFAULTS.stage1 / 'cameras.json'

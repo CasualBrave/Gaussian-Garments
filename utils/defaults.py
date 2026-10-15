@@ -7,9 +7,9 @@ DEFAULTS = dict()
 
 
 
-DEFAULTS['output_root'] = '/path/to/output/dir'
-DEFAULTS['data_root'] = '/path/to/input/dir'
-DEFAULTS['aux_root'] = '/path/to/auxiliary/dir'
+DEFAULTS['output_root'] = os.environ.get('REALFIT3D_GG_OUTPUT_ROOT', '/path/to/output/dir')
+DEFAULTS['data_root'] = os.environ.get('REALFIT3D_GG_DATA_ROOT', '/path/to/input/dir')
+DEFAULTS['aux_root'] = os.environ.get('REALFIT3D_GG_AUX_ROOT', '/path/to/auxiliary/dir')
 
 
 
