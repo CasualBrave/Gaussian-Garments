@@ -1,29 +1,11 @@
 #!/usr/bin/env python3
-"""Render ONE already-simulated static frame from several camera angles
-("turntable" images), instead of one frame from a moving camera.
+"""Render one simulated frame from multiple camera angles.
 
-Sibling of render_lean.py, same relationship to inference.py: reuses
-inference.py's own Simulation/Doll classes and helpers by importing it as a
-module (`import inference as inf`), doesn't modify render_lean.py or
-inference.py.
-
-Why this is cheap per extra angle, not free but not full price either:
-`Simulation.prepare_frame(idx)` (inference.py, unmodified) does the mesh
-export + Blender Cycles AO/normal texture bake -- by far the most expensive
-step (~60-65% of render_lean.py's own "prep" bucket, per its docstring) --
-and that function is entirely camera-independent (it bakes onto the
-garment's UV texture space, no camera involved). It's ALSO already
-self-caching to disk (`if not os.path.exists(_ambient): ...` /
-`if not os.path.exists(_body): ...`), so calling it once per angle with the
-SAME frame idx and SAME --output_path (as this script does, on purpose)
-only actually bakes on the first angle -- every angle after that just reads
-the cached PNGs/PLY back off disk. What's NOT free and genuinely gets
-redone per angle: AvatarNet's forward pass (`update_garments`, takes the
-camera as an input -- the shading it produces is view-dependent) and the
-o3d visibility raycast (`prepare_gaussian`, needs to know what's visible
-from THIS camera), plus the cheap rasterization calls. Expect roughly
-"first angle full price, each additional angle a fraction of that" -- see
-run_outfit_preview_pipeline.py's docstring for a measured estimate.
+Reuses inference.py's Simulation and Doll, with configurable bake sampling
+from render_lean.py. Simulation.prepare_frame caches camera-independent mesh
+and AO/normal bake outputs under output_path. Angles sharing the same frame
+reuse those files. AvatarNet shading, visibility raycasts, and rasterization
+are evaluated for each camera.
 
 Must be launched with the gaugar Python environment and cwd=Gaussian-Garments
 root, exactly like render_lean.py:

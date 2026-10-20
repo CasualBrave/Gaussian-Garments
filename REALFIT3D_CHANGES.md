@@ -2,8 +2,7 @@
 
 [Traditional Chinese](REALFIT3D_CHANGES.zh-TW.md) | [README](README.md)
 
-Status checked: 2026-10-20. This document describes changes actually committed
-to this fork, not all experiments performed by the team.
+Updated: 2026-10-20. Scope: this fork's code changes, dependencies, and validation status.
 
 ## 1. Baseline and Repository Roles
 
@@ -13,18 +12,17 @@ to this fork, not all experiments performed by the team.
 - [RealFit3D](https://github.com/CasualBrave/realfit3d): website, API, workflow
   orchestration, fitting workers, quality tools, and configuration.
   It pins this fork at `upstream/Gaussian-Garments` using a Git submodule.
-- ContourCraft and ActorsHQ/GS2Mesh are separate dependencies, not additions
-  to GG's original training algorithms.
+- ContourCraft provides dynamics; ActorsHQ/GS2Mesh provides the alternative
+  reconstruction pipeline. RealFit3D pins these dependencies separately.
 
 A submodule records a specific commit. Pushing this fork does not automatically
 update RealFit3D; the parent repository must also commit its updated reference.
-Upstream attribution and notices remain in place. Repository layout does not
-establish authorship of an algorithm or change third-party license terms.
+We retain the upstream README, references, and notices. The source of each
+imported component is listed below.
 
 ## 2. Adopted Code Changes
 
 The implementation changes below were introduced in fork commit `8a52dc6`.
-Later documentation commits do not add opacity functionality.
 
 ### 2.1 Handoff Rendering Entries
 
@@ -32,7 +30,7 @@ Files: [render_lean.py](render_lean.py), [render_turntable.py](render_turntable.
 
 Source: `CasualBrave/frontend_temp`, commit
 `2a643b1b43a0329dce23b7c40fbc2757bcfab968`.
-These scripts were reused from the handoff, not invented during integration.
+We imported both scripts from this revision.
 
 - `render_lean.py` renders the final panel without the original diagnostic panel
   composition and exposes a bake sample-count option.
@@ -42,11 +40,10 @@ These scripts were reused from the handoff, not invented during integration.
   remains at 16. The entries replace the bake function in their own process;
   they do not change the global upstream default in source.
 
-Purpose: expose the handoff's preview-oriented rendering behavior through stable
-entries. Lower sampling is a quality/performance tradeoff, not evidence of equal
-image quality. Historical performance comments in the handoff scripts are not
-new measurements from this integration. GPU quality and timing comparisons remain
-pending.
+These entries support preview rendering with configurable bake sampling.
+Lower sample counts can introduce noise in the baked AO/normal maps.
+GPU acceptance will compare image quality and elapsed time at 4 and 16 samples
+using the same assets, frames, and camera settings.
 
 ### 2.2 Configurable Data Roots
 
@@ -61,7 +58,7 @@ File: [utils/defaults.py](utils/defaults.py).
 Previously these paths were source-code placeholders. They now accept environment
 overrides so separate deployments do not need to edit shared code. Original
 fallback placeholders and input/auxiliary-directory existence checks remain.
-This does not download assets, construct environments, or validate model contents.
+Deployment requires existing asset directories and configured runtime environments.
 
 ### 2.3 Simulation Input Guards
 
@@ -75,11 +72,10 @@ The added checks reject:
   sum of the UV-template vertex counts in the provided garment order.
 - Different numbers of garment (`pred`) and body (`obstacle`) frames.
 
-Purpose: fail early on some incompatible assets instead of producing a misleading
-render or a later indexing failure. The producer must still provide the correct
-garment order. Equal counts do not prove matching topology, coordinates, or
-checkpoint semantics. These checks run after pickle loading and do not make
-untrusted pickle files safe.
+These checks reject incompatible counts before rendering. Asset preparation must
+also verify garment order, face indices, coordinate conventions, and appearance
+checkpoint selection. The checks run after pickle loading; use trusted input
+files because pickle deserialization can execute code.
 
 ## 3. Changes Deliberately Not Adopted
 
@@ -87,10 +83,9 @@ untrusted pickle files safe.
   appearance checkpoint. RealFit3D workers write explicit garment names.
 - Unrelated inference timing changes and changes to the global bake default:
   preview bake settings remain scoped to the new rendering entries.
-- Experimental LBS/ICP pose-transfer paths are not silently enabled as the
-  default RealFit3D workflow.
-- Opacity V3 and remote training modifications have not been copied wholesale
-  into this fork. They need source comparison and compatibility validation.
+- Experimental LBS/ICP pose transfer remains a separate research path.
+- Opacity V3 and remote training modifications are scheduled for source
+  comparison and compatibility validation before integration.
 
 ## 4. Stage Coverage
 
@@ -103,7 +98,7 @@ untrusted pickle files safe.
 | Online fitting | Handoff fitting/pin workers live in RealFit3D. | Compare real-asset behavior with the deployed handoff. |
 | Rendering | New handoff entries, configurable paths, and input guards above. | Validate output quality, performance, and the complete website result path. |
 
-## 5. Opacity V3: Found, Not Integrated
+## 5. Opacity V3 Integration
 
 On 2026-10-20, read-only inspection of the remote
 `iismtl5197096_actor1267_delivery_20261020` package found:
@@ -114,21 +109,20 @@ On 2026-10-20, read-only inspection of the remote
 - Actor02 upper/lower `controller.pt` files, whose existence and hashes were
   checked. They were not deserialized or tested on a GPU.
 
-The delivery manifest labels Actor02 as learned V3. Actor01, Actor06, and Actor07
-use direct opacity scaling, not learned V3. It exposes one global opacity
+The delivery manifest assigns learned V3 to Actor02 and direct opacity scaling
+to Actor01, Actor06, and Actor07. It exposes one global opacity
 value per invocation, not independent upper/lower controls.
 
-The earlier GitHub transparency handoff lacked these core files; this limitation
-must not be generalized to the newly located server package. Discovery is not
-integration or acceptance testing. Paths, hashes, and evidence boundaries are in
+The GitHub transparency repository provides research notes and actor scripts;
+the remote delivery provides the V3 source and Actor02 controller files.
+Source review and asset compatibility checks precede integration. Paths and hashes are in
 the [remote discovery record](https://github.com/CasualBrave/realfit3d/blob/main/docs/REMOTE_DISCOVERY_20261020.md).
 
 ## 6. Validation and Future Updates
 
 Source checkout/version checks and parent-project CPU/browser tests have passed.
-They do not exercise a complete real-model GPU try-on or retraining run.
-No claim of output parity, measured speedup, or complete S1-S4 reproduction is
-made for this fork.
+GPU acceptance is pending. It will compare trajectories, rendered images/video,
+runtime, and peak memory against the existing workflow using the same inputs.
 
 To inspect code differences locally:
 

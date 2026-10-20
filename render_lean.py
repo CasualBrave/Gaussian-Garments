@@ -1,46 +1,12 @@
 #!/usr/bin/env python3
-"""Leaner stage 5 render: only produce what the final video needs.
+"""Render the final composited panel using inference.py's Simulation and Doll.
 
-Ablation counterpart to inference.py. Per inference.py's own timing printout
-(see its "3DGS 光柵化渲染" vs "圖片拼接與 I/O" lines), the per-frame cost splits
-roughly 80% mesh/texture-bake prep, 8% Gaussian rasterization, 12% image I/O.
-This script doesn't touch the 80% (mesh export, Blender AO/normal baking,
-AvatarNet forward, visibility raycasting -- all required regardless of output
-format). It only removes the parts that existed purely for a debug comparison
-view:
+--bake-samples controls AO/normal bake sampling at the existing 512x512
+texture resolution. The texture dimensions must match the appearance
+checkpoint. Lower sample counts can increase noise in the baked maps.
 
-  - inference.py rasterizes each frame 3x (raw / style / final) and
-    concatenates all three plus the raw garment-only render into one wide
-    debug PNG. This script rasterizes only "final" (the actual composited
-    result) and saves just that -- no raw/style panels, no quad image.
-
-vert/face-level correctness is untouched: "final" here is pixel-identical to
-the "final" panel inference.py would have produced, just without its debug
-neighbors. Reuses inference.py's own Doll/Simulation classes and helpers by
-importing it as a module, so any behavior fix made there stays in sync.
-
-Per-substep profiling of the "prep" bucket (see sub_times below) showed it's
-dominated by prepare_frame()'s Blender Cycles AO/normal texture baking
-(~60-65% of prep, by far the largest single piece). --bake-samples lets you
-trade a little baking quality for speed: it lowers Cycles' path-tracing
-sample count (hardcoded to 16 in inference.py's bake_texture) for both the
-AO and normal bakes. This only adds noise to the baked maps at the *same*
-512x512 resolution -- resolution itself must NOT be changed, since AvatarNet's
-pretrained checkpoint has its style/MLP layers sized to args.texture_size
-(512); changing the actual texture resolution would break that checkpoint's
-expected input shape, not just soften it.
-
---profile-substeps (off by default) turns on that fine-grained breakdown --
-useful for finding the next bottleneck, but NOT for production runs: getting
-per-substep timing means calling torch.cuda.synchronize() before/after each
-of the 6 substeps (7 syncs/frame total), each one a hard CPU/GPU barrier that
-blocks the pipelining a normal run gets for free. Measured cost: with
---profile-substeps on, a 2-garment outfit rendered slower than plain
-inference.py (179.5s vs 133.9s) despite doing strictly less work (1 panel,
-not 4) -- the sync tax alone outweighed the panel-count and bake-sample
-savings combined. Default off uses the same 3-sync/frame pattern as
-inference.py's own timing code (prep/render/IO boundaries only), so the
---bake-samples and single-panel savings actually show up in wall-clock time.
+--profile-substeps adds CUDA synchronization around preparation substeps.
+It is disabled by default because synchronization affects runtime measurements.
 
 Must be launched with the gaugar Python environment and cwd=Gaussian-Garments
 root, exactly like inference.py itself:
