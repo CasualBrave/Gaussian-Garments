@@ -1,61 +1,17 @@
 # Gaussian garments: Reconstructing simulation-ready clothing with photorealistic appearance from multi-view video
 
-## 與原版的差異 / Differences from Upstream
+## About This Fork
 
-### 中文
+This is an integration fork of [eth-ait/Gaussian-Garments](https://github.com/eth-ait/Gaussian-Garments),
+used as a pinned Git submodule by [RealFit3D](https://github.com/CasualBrave/realfit3d).
+It adds handoff rendering entries, configurable data paths, and input checks.
+**Opacity V3 integration and end-to-end GPU validation are pending.**
 
-這是 RealFit3D 維護的 GG 整合 fork，不是原作者的官方版本。
-比較基準為 [eth-ait/Gaussian-Garments](https://github.com/eth-ait/Gaussian-Garments)
-的 `ceb66fc36598da05b3b3391f4562cdc54d2a2ed2`。
-**這個 fork 目前只包含下列渲染與整合修改，不是組員所有實驗的完整集合。**
+For the baseline, detailed changes, provenance, and limitations, see:
+[English](REALFIT3D_CHANGES.md) | [Traditional Chinese](REALFIT3D_CHANGES.zh-TW.md).
+For the website and integrated workflow, start with [RealFit3D](https://github.com/CasualBrave/realfit3d).
 
-| 範圍 | 已合併的差異 | 來源與限制 |
-|---|---|---|
-| `render_lean.py`、`render_turntable.py` | 新增精簡渲染與轉盤渲染入口，採用較低的 bake 採樣設定 | 沿用組員 frontend_temp 交付程式，不是本次新發明的算法；未驗證等畫質或實際加速幅度 |
-| `utils/defaults.py` | 支援 `REALFIT3D_GG_DATA_ROOT`、`REALFIT3D_GG_OUTPUT_ROOT`、`REALFIT3D_GG_AUX_ROOT` 環境變數 | 避免在共用程式寫死每台機器的資料路徑；保留原本 fallback |
-| `inference.py` 的 `Simulation` | 拒絕缺少衣物名稱、UV 頂點數不符、人體與衣物幀數不符的輸入 | 基本相容性檢查，不等於完整幾何或 checkpoint 語意驗證 |
-| Stage 1 / 2 / 3 訓練核心 | **未修改原版算法** | 組員伺服器上的相關實驗修改仍待逐項比對，不宣稱已全部整合 |
-| 透明度 V3 | **尚未合併** | 2026-10-20 已在遠端交付找到 controller 程式與 Actor02 上下衣權重，但尚未遷入此 fork 或執行 GPU 驗收 |
-| Stage 4、網站、身形適配與品質工具 | 不放在此 GG fork | 由 [RealFit3D 主專案](https://github.com/CasualBrave/realfit3d)整合 ContourCraft、ActorsHQ 與本組 worker |
-
-**最新查核做了什麼：**只讀取遠端程式、交付設定與計算少量檔案雜湊，
-再於本機更新文件並推送。沒有改動遠端小組資料、沒有下載並整合透明度程式，
-也沒有載入模型或跑 GPU。交付設定只有 Actor02 標為 learned V3；
-Actor01 / 06 / 07 使用 direct opacity，不可混稱 V3。
-
-原始碼版本一致性與 CPU／網頁整合檢查已完成，但不代表 GPU 試衣流程已通過。
-詳細來源、尚未採用的改動及證據範圍見 [修改紀錄](REALFIT3D_CHANGES.md)；
-遠端發現見 [唯讀查核紀錄](https://github.com/CasualBrave/realfit3d/blob/main/docs/REMOTE_DISCOVERY_20261020.md)。
-
-### English
-
-This is the RealFit3D integration fork, not the original authors' official release.
-The upstream baseline is `eth-ait/Gaussian-Garments` at
-`ceb66fc36598da05b3b3391f4562cdc54d2a2ed2`.
-**This fork contains the integration changes below, not every team experiment.**
-
-| Area | Adopted change | Provenance and limits |
-|---|---|---|
-| `render_lean.py`, `render_turntable.py` | Added lean and turntable rendering entries with reduced bake sampling | Reused from the frontend_temp handoff; not a newly invented algorithm or a verified equal-quality speedup |
-| `utils/defaults.py` | Added `REALFIT3D_GG_DATA_ROOT`, `REALFIT3D_GG_OUTPUT_ROOT`, `REALFIT3D_GG_AUX_ROOT` environment overrides | Avoids machine-specific source edits; original fallback values remain |
-| `Simulation` in `inference.py` | Rejects missing garment names, mismatched UV vertex counts, and unequal body/garment frame counts | Basic compatibility checks, not full geometry or checkpoint validation |
-| Stage 1 / 2 / 3 training core | **Original algorithms unchanged** | Team server-side experiment changes still need individual comparison; they are not all integrated |
-| Opacity V3 | **Not integrated** | Remote controller code and Actor02 upper/lower weights were located on 2026-10-20; migration and GPU validation are pending |
-| Stage 4, website, fitting, quality tools | Outside this GG fork | Orchestrated by [RealFit3D](https://github.com/CasualBrave/realfit3d) with ContourCraft, ActorsHQ, and team workers |
-
-**Latest inspection:** read remote source/configuration and hashed a few files,
-then updated and pushed documentation from the local machine. It did not modify
-remote team data, download and integrate opacity code, load models, or run GPU
-experiments. The delivery configuration labels only Actor02 as learned V3;
-Actor01 / 06 / 07 use direct opacity instead.
-
-Source-version and CPU/web integration checks do not establish GPU end-to-end
-correctness. See [REALFIT3D_CHANGES.md](REALFIT3D_CHANGES.md) for source commits,
-omitted changes, and validation boundaries, and the
-[read-only discovery record](https://github.com/CasualBrave/realfit3d/blob/main/docs/REMOTE_DISCOVERY_20261020.md)
-for the remote evidence.
-
-## 原版使用文件 / Original Upstream Documentation
+## Original Upstream Documentation
 
 The original upstream usage documentation follows.
 
