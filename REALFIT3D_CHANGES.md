@@ -127,10 +127,16 @@ canonical position and produces eight positive, normalized weights. These define
 a monotonic piecewise-linear function of the requested scale; its output changes
 the Gaussian opacity before the same rasterization step.
 
+Training freezes the Stage 3 model and renders its original alpha image A1.
+For a sampled control value s, the target is s times A1. The controller changes
+the per-Gaussian opacities, and the differentiable rasterizer renders a new alpha
+image. Training minimizes its foreground error against the target, updating only
+the controller. The saved controller is used alongside the Stage 3 checkpoint
+at inference time.
+
 The delivered runtime assigns learned V3 to Actor02 and direct scaling to
 Actor01, Actor06, and Actor07. V3 source and Actor02 controller files are located;
-they are not yet included in this fork. Training-source review and integration
-are tracked in the maintainer notes.
+they are not yet included in this fork. Integration is tracked in the maintainer notes.
 
 ## Version and Validation
 

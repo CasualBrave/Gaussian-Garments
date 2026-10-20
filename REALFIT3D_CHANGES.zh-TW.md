@@ -110,9 +110,14 @@ V3 則把原始 opacity 與正規化後的初始位置送入小型神經網路�
 產生八個正值且總和為一的權重。這些權重組成隨控制值單調變化的分段線性函數，
 再用函數輸出調整每顆 Gaussian 的 opacity，交給原有光柵化步驟產生畫面。
 
+訓練時先固定 Stage 3 模型，渲染原始 alpha 圖 A1，再抽取控制值 s，
+將 s × A1 當作目標。Controller 調整每顆 Gaussian 的 opacity，
+可微分光柵器用它們產生新 alpha 圖；程式比較新圖與目標的前景誤差，
+只更新 controller。訓練完成的 controller 會與 Stage 3 checkpoint 一起用於推論。
+
 目前交付設定中，Actor02 使用 learned V3，Actor01／06／07 使用 direct。
 我們已定位 V3 程式與 Actor02 controller 權重；此 fork 尚未包含它們。
-訓練程式查核與接入工作另記於維護紀錄。
+接入工作另記於維護紀錄。
 
 ## 版本與測試
 
