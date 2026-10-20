@@ -1,5 +1,22 @@
 # Gaussian garments: Reconstructing simulation-ready clothing with photorealistic appearance from multi-view video
 
+## RealFit3D Fork Status
+
+This is the RealFit3D team's integration fork of
+[eth-ait/Gaussian-Garments](https://github.com/eth-ait/Gaussian-Garments),
+based on commit `ceb66fc36598da05b3b3391f4562cdc54d2a2ed2`.
+See [REALFIT3D_CHANGES.md](REALFIT3D_CHANGES.md) for the adopted changes,
+their sources, and the features that are **not yet integrated**.
+
+Current changes add handoff lean/turntable renderers, configurable data roots,
+and basic simulation-input checks. They do not modify S1/S2/S3 training
+algorithms or implement the team's opacity V3 controller. Remote team
+experiments still need a read-only source audit; GPU end-to-end validation
+is pending. The website and orchestration live in
+[RealFit3D](https://github.com/CasualBrave/realfit3d), not this repository.
+
+The original upstream usage documentation follows.
+
 ### <img align=center src=./static/icons/project.png width='32'/> [Project](https://ribosome-rbx.github.io/Gaussian-Garments/) &ensp; <img align=center src=./static/icons/paper.png width='24'/> [Paper](https://arxiv.org/abs/2409.08189) &ensp;  
 
 This is a repository for the paper [**"Gaussian garments: Reconstructing simulation-ready clothing with photorealistic appearance from multi-view video"**](https://ribosome-rbx.github.io/Gaussian-Garments/) (3DV2025).

@@ -21,3 +21,18 @@ Baseline: eth-ait/Gaussian-Garments at
   been delivered. Original upstream files and notices retain their provenance.
 
 This revision has static/CPU integration checks, not GPU output parity testing.
+
+## Stage Coverage and Evidence Boundaries
+
+| Area | Current integration | Still to verify |
+|---|---|---|
+| S1 reconstruction | This fork's original S1 is unchanged. RealFit3D separately pins the ActorsHQ/GS2Mesh alternative and includes handoff quality tools. | Remote reconstruction scripts and which reviewed outputs were used; quality tools are not all automatically wired into reconstruction. |
+| S2 registration | Original GG training code. | Team server-side changes, launch commands, and checkpoints have not been audited. |
+| S3 appearance | Original GG training code; no team opacity V3 controller. | The delivered transparency repository contains descriptions and actor scripts, not V3 core code or weights. This does not establish that the code is absent from the server. |
+| S4 dynamics | Outside this fork: RealFit3D wraps pinned ContourCraft conversion/training. | Team server-side training changes and their effective configurations. |
+| Online fitting | Handoff fitting/pin workers live in RealFit3D, not this fork. | Real-asset GPU behavior and comparison with the deployed handoff. |
+| Rendering | Handoff lean/turntable entries, path configuration, and trajectory guards above. | GPU image parity, quality/performance tradeoffs, and complete website output. |
+
+After a read-only server audit, record each adopted change here with its source
+path, baseline commit/diff, purpose, and validation status. A server filename
+alone is not evidence that the change is implemented or integrated.
