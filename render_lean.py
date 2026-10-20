@@ -113,6 +113,7 @@ if __name__ == "__main__":
     lp = ModelParams(parser)
     pp = PipelineParams(parser)
     cp = Config(parser)
+    inf.add_opacity_arguments(parser)
     parser.add_argument("--HQ", action="store_true")
     parser.add_argument("--start_from", type=int, default=0)
     parser.add_argument("--bake-samples", type=int, default=4,

@@ -52,6 +52,7 @@ if __name__ == "__main__":
     lp = ModelParams(parser)
     pp = PipelineParams(parser)
     cp = Config(parser)
+    inf.add_opacity_arguments(parser)
     parser.add_argument("--bake-samples", type=int, default=4,
         help="Same meaning as render_lean.py's --bake-samples.")
     parser.add_argument("--traj_path", type=str, required=True)

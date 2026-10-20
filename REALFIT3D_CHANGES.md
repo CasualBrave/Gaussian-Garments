@@ -19,9 +19,9 @@ We maintain this fork against
 [eth-ait/Gaussian-Garments](https://github.com/eth-ait/Gaussian-Garments),
 baseline `ceb66fc36598da05b3b3391f4562cdc54d2a2ed2`.
 RealFit3D pins it as the `upstream/Gaussian-Garments` submodule.
-The changes described below concern rendering entries, configuration, and input
-validation. The original S1 reconstruction, S2 registration, and S3 training
-algorithms are unchanged in this revision.
+The changes concern rendering entries, configuration, input validation, and an
+additional opacity controller trained after S3. The original S1 reconstruction,
+S2 registration, and S3 appearance-training algorithms remain unchanged.
 
 ## Rendering a Simulated Garment
 
@@ -120,12 +120,15 @@ occurs before these checks.
 
 ## Opacity Control
 
-The team's separate opacity runtime applies control before Gaussian
-rasterization. In `direct` mode it multiplies each Gaussian's base opacity by
-one requested scale. In V3, a small network takes the base opacity and normalized
+All three rendering entries now use [opacity_runtime.py](opacity_runtime.py)
+before Gaussian rasterization. `original` preserves the existing rendering.
+`direct` multiplies each Gaussian's base opacity by the requested scale.
+`optical_depth` applies `1 - (1 - alpha)^s`. In V3, a small network takes the base opacity and normalized
 canonical position and produces eight positive, normalized weights. These define
 a monotonic piecewise-linear function of the requested scale; its output changes
-the Gaussian opacity before the same rasterization step.
+the Gaussian opacity through `1 - (1 - alpha)^m(s)` before the same rasterization
+step. `s=0` hides the garments; `s=1` preserves their original opacity exactly.
+One scale applies to all garments in the trajectory; each garment has its own V3 weights.
 
 Training freezes the Stage 3 model and renders its original alpha image A1.
 For a sampled control value s, the target is s times A1. The controller changes
@@ -134,15 +137,46 @@ image. Training minimizes its foreground error against the target, updating only
 the controller. The saved controller is used alongside the Stage 3 checkpoint
 at inference time.
 
-The delivered runtime assigns learned V3 to Actor02 and direct scaling to
-Actor01, Actor06, and Actor07. V3 source and Actor02 controller files are located;
-they are not yet included in this fork. Integration is tracked in the maintainer notes.
+[train_opacity_v3.py](train_opacity_v3.py) reads the subject's Stage 2 meshes,
+point clouds and baked AO/normal maps, calibrated camera metadata and image
+dimensions, plus its Stage 3 checkpoint. The default protocol uses frames 0-29
+for training, 30-39 for validation, 5,000 Adam steps, and up to eight cameras.
+The loss is foreground-weighted alpha L1 plus `0.001 * mean((p - 1/8)^2)`.
+It saves `controller.pt`, the configuration, training log, and validation metrics.
+Existing output directories are rejected.
+
+```bash
+python train_opacity_v3.py --subject Actor02_upper --sequence Sequence1
+python render_turntable.py \
+  --traj_path /path/to/trajectory.pkl --output_path /path/to/new-preview \
+  --frame_idx 0 --n-angles 12 --opacity-mode v3 --opacity-scale 0.5 \
+  --v3-controller Actor02_upper=/assets/Actor02_upper/opacity_controller_v3/controller.pt \
+  --v3-controller Actor02_lower=/assets/Actor02_lower/opacity_controller_v3_valid_cameras/controller.pt
+```
+
+The same opacity arguments work with `render_lean.py` and `inference.py`.
+Without explicit mappings, V3 looks for exactly one controller in either
+`opacity_controller_v3/controller.pt` or
+`opacity_controller_v3_valid_cameras/controller.pt` inside each garment directory.
+Missing, ambiguous, mismatched-subject, or invalid-normalization checkpoints stop
+the run. Checkpoints are installed separately, not bundled in Git.
+
+The controller retains the team's V3 `4 -> 32 -> 32 -> 8` network and checkpoint
+keys. We replaced the Actor02-only training paths with subject/sequence arguments,
+added output protection, and connected the renderer used by RealFit3D.
+This changes rendered transparency, not cloth mechanics or material refraction.
+Source file hashes and GPU test results are recorded in the
+[integration record](https://github.com/CasualBrave/realfit3d/blob/main/docs/OPACITY_INTEGRATION_20261020.md).
 
 ## Version and Validation
 
 The rendering entries, path overrides, and input checks were introduced in
-`8a52dc6`. Source-version checks and RealFit3D's CPU/browser tests have passed.
-End-to-end GPU rendering validation is pending.
+`8a52dc6`. Controller and training-helper tests run with
+`python -m unittest discover -s tests -v` in a Torch environment.
+`tests/smoke_opacity_render.py` checks real checkpoints through both rendering
+entries, including original/V3 endpoints and a half-opacity image.
+Full body fitting and cloth simulation are separate acceptance tests.
+Retraining the generalized V3 entry requires the complete Stage 2 training assets.
 
 For development and version updates, see
 [RealFit3D's development guide](https://github.com/CasualBrave/realfit3d/blob/main/docs/DEVELOPMENT.md).

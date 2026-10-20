@@ -18,6 +18,7 @@ from PIL import Image
 from gaussian_renderer import doll_render
 from matplotlib import pyplot as plt
 from utils.defaults import DEFAULTS
+from opacity_runtime import GarmentOpacity, add_opacity_arguments
 from argparse import ArgumentParser
 from arguments import ModelParams, PipelineParams
 from arguments import ParamGroup
@@ -230,6 +231,7 @@ class Doll(MeshGaussianModel):
     def __init__(self, args, garment_names) -> None:
         super(MeshGaussianModel, self).__init__(args.sh_degree)
         self.active_sh_degree = args.sh_degree
+        self.opacity_control = GarmentOpacity(args, garment_names, DEFAULTS.output_root)
 
         # get garment gaussian (temporal version --> to include simulator)
         self.garments = []
@@ -278,7 +280,7 @@ class Doll(MeshGaussianModel):
         self.features = torch.cat([g.shs for g in self.garments])[vis_mask]
         self.raw_features = torch.cat([g.get_features for g in self.garments])[vis_mask]
         self.style_features = torch.cat([g for g in style_list])[vis_mask]
-        self.opacity = torch.cat([g.get_opacity for g in self.garments])[vis_mask]
+        self.opacity = self.opacity_control.apply(self.garments)[vis_mask]
         self.scaling = torch.cat([g.get_scaling for g in self.garments])[vis_mask]
         self.covariance = torch.cat([g.get_covariance() for g in self.garments])[vis_mask]
 
@@ -441,6 +443,7 @@ if __name__ == "__main__":
     lp = ModelParams(parser)
     pp = PipelineParams(parser)
     cp = Config(parser)
+    add_opacity_arguments(parser)
     parser.add_argument("--HQ", action="store_true")
     parser.add_argument("--start_from", type=int, default=0)
     parser.add_argument('--gt_mesh', type=str, required=False, default='')

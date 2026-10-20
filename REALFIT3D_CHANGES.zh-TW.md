@@ -17,8 +17,8 @@ ContourCraft 先算出人體與衣物逐幀移動的 mesh；GG 將這些形狀�
 此 fork 以 [eth-ait/Gaussian-Garments](https://github.com/eth-ait/Gaussian-Garments)
 的 `ceb66fc36598da05b3b3391f4562cdc54d2a2ed2` 為基準，
 由 RealFit3D 透過 `upstream/Gaussian-Garments` submodule 固定版本。
-以下修改集中在渲染入口、路徑設定與輸入檢查；
-此版本的 S1 重建、S2 registration、S3 訓練算法維持原版。
+以下修改包含渲染入口、路徑設定、輸入檢查，以及 S3 完成後的透明度控制器訓練。
+S1 重建、S2 registration、S3 外觀訓練算法維持原版。
 
 ## 模擬結果如何變成衣物圖片
 
@@ -104,25 +104,56 @@ Renderer 依衣物名稱讀取資產目錄中的 `stage1/template_uv.obj`、
 
 ## 透明度控制
 
-小組的另一套透明度執行程式是在 Gaussian 光柵化前調整 opacity。
+三個渲染入口現在共用 [opacity_runtime.py](opacity_runtime.py)，在 Gaussian 光柵化前調整 opacity。
+`original` 保留原本渲染行為。
 `direct` 模式直接將每顆 Gaussian 的原始 opacity 乘上控制值。
+`optical_depth` 以 `1 - (1 - alpha)^s` 調整光學厚度。
 V3 則把原始 opacity 與正規化後的初始位置送入小型神經網路，
 產生八個正值且總和為一的權重。這些權重組成隨控制值單調變化的分段線性函數，
-再用函數輸出調整每顆 Gaussian 的 opacity，交給原有光柵化步驟產生畫面。
+再以 `1 - (1 - alpha)^m(s)` 調整每顆 Gaussian 的 opacity，交給原有光柵化步驟產生畫面。
+`s=0` 隱藏衣物，`s=1` 精確保留原本 Gaussian opacity。
+同一次渲染共用一個控制值，但每件衣物各自載入對應的 V3 權重。
 
 訓練時先固定 Stage 3 模型，渲染原始 alpha 圖 A1，再抽取控制值 s，
 將 s × A1 當作目標。Controller 調整每顆 Gaussian 的 opacity，
 可微分光柵器用它們產生新 alpha 圖；程式比較新圖與目標的前景誤差，
 只更新 controller。訓練完成的 controller 會與 Stage 3 checkpoint 一起用於推論。
 
-目前交付設定中，Actor02 使用 learned V3，Actor01／06／07 使用 direct。
-我們已定位 V3 程式與 Actor02 controller 權重；此 fork 尚未包含它們。
-接入工作另記於維護紀錄。
+[train_opacity_v3.py](train_opacity_v3.py) 讀取指定衣物的 Stage 2 mesh、
+point cloud、AO／normal 貼圖、相機校正資料與影像尺寸，以及 Stage 3 checkpoint。
+預設以第 0–29 幀訓練、第 30–39 幀驗證，最多選八台相機，執行 5,000 次 Adam 更新。
+損失為前景加權 alpha L1，加上 `0.001 * mean((p - 1/8)^2)` 正則項。
+產出 `controller.pt`、設定、訓練紀錄及驗證指標；已存在的輸出目錄不會被覆寫。
+
+```bash
+python train_opacity_v3.py --subject Actor02_upper --sequence Sequence1
+python render_turntable.py \
+  --traj_path /path/to/trajectory.pkl --output_path /path/to/new-preview \
+  --frame_idx 0 --n-angles 12 --opacity-mode v3 --opacity-scale 0.5 \
+  --v3-controller Actor02_upper=/assets/Actor02_upper/opacity_controller_v3/controller.pt \
+  --v3-controller Actor02_lower=/assets/Actor02_lower/opacity_controller_v3_valid_cameras/controller.pt
+```
+
+同樣的透明參數也適用於 `render_lean.py` 與 `inference.py`。
+未指定對應路徑時，V3 會在每件衣物目錄下尋找
+`opacity_controller_v3/controller.pt` 或
+`opacity_controller_v3_valid_cameras/controller.pt`，必須恰好找到一份。
+缺少或重複權重、權重內的衣物名稱不符、座標正規化資料無效時，程式會停止。
+權重另行安裝，不包含在 Git 中。
+
+控制器保留小組 V3 的 `4 → 32 → 32 → 8` 網路及 checkpoint 欄位。
+本次將固定 Actor02 的訓練路徑改為 subject／sequence 參數，加入輸出保護，
+並接到 RealFit3D 使用的渲染入口。這項控制改變畫面透明度，不改變布料力學或模擬材質折射。
+來源檔案雜湊與 GPU 實測結果記於
+[接入紀錄](https://github.com/CasualBrave/realfit3d/blob/main/docs/OPACITY_INTEGRATION_20261020.md)。
 
 ## 版本與測試
 
 渲染入口、路徑設定與輸入檢查由 `8a52dc6` 引入。
-已完成來源版本檢查及 RealFit3D CPU／瀏覽器測試；
-完整 GPU 渲染驗收待執行。
+控制器與訓練資料處理測試可在 Torch 環境執行
+`python -m unittest discover -s tests -v`。
+`tests/smoke_opacity_render.py` 使用真實權重檢查兩個渲染入口、
+原始／V3 端點及半透明圖像。人體擬合與布料模擬另作完整流程驗收；
+重新訓練 V3 需要完整 Stage 2 訓練資料。
 
 版本更新方式見 [RealFit3D 開發流程](https://github.com/CasualBrave/realfit3d/blob/main/docs/DEVELOPMENT.md)。
