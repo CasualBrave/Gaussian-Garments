@@ -1,127 +1,123 @@
-# 與原版 Gaussian Garments 的差異
+# RealFit3D 對 Gaussian Garments 的修改
 
 [English](REALFIT3D_CHANGES.md) | [README](README.md)
 
-更新日期：2026-10-20。範圍：此 fork 的程式修改、依賴與驗證狀態。
+## 在試衣流程中的位置
 
-## 1. 比較基準與專案分工
+ContourCraft 先算出人體與衣物逐幀移動的 mesh；GG 將這些形狀與訓練好的
+衣物外觀模型結合，渲染成圖片。RealFit3D 再把圖片組成網站上的多角度預覽與影片。
 
-- 官方來源：[eth-ait/Gaussian-Garments](https://github.com/eth-ait/Gaussian-Garments)。
-- 比較基準：`ceb66fc36598da05b3b3391f4562cdc54d2a2ed2`。
-- 此 fork：維護需要放在 GG 執行程式內的改動。
-- [RealFit3D 主專案](https://github.com/CasualBrave/realfit3d)：網站、API、
-  流程調度、身形適配 worker、品質工具與設定；
-  以 Git submodule 在 `upstream/Gaussian-Garments` 引用此 fork 的固定版本。
-- ContourCraft 提供動態模擬，ActorsHQ／GS2Mesh 提供替代重建流程；
-  RealFit3D 分別固定這些依賴的版本。
-
-Submodule 記錄特定 commit。推送此 fork 不會自動更新 RealFit3D，
-還必須在主專案提交新的引用。我們保留上游 README、引用與聲明；
-各移入元件的來源列於下方。
-
-## 2. 已採用的程式修改
-
-以下實作由 fork commit `8a52dc6` 引入。
-
-### 2.1 沿用交接版渲染入口
-
-檔案：[render_lean.py](render_lean.py)、[render_turntable.py](render_turntable.py)。
-
-來源：`CasualBrave/frontend_temp`，commit
-`2a643b1b43a0329dce23b7c40fbc2757bcfab968`。
-我們從此版本移入這兩個渲染腳本。
-
-- `render_lean.py` 輸出最終畫面，不組合原版的診斷面板，並提供 bake 採樣數選項。
-- `render_turntable.py` 對選定的一幀渲染多個角度，透過既有 preparation cache
-  在不同角度間重用 mesh／bake 產物。
-- 兩個入口的 `--bake-samples` 預設為 4；原版 `inference.py` 仍為 16。
-  新入口僅在自己的程序替換 bake 函式，沒有修改原版全域預設。
-
-這兩個入口支援可調整烘焙採樣數的預覽渲染。較低採樣數可能增加 AO／normal
-貼圖雜訊。GPU 驗收將以相同資產、影格與相機設定，比較 4 與 16 samples
-的畫質及耗時。
-
-### 2.2 資料路徑改為可設定
-
-檔案：[utils/defaults.py](utils/defaults.py)。
-
-| 環境變數 | 對應 GG 設定 |
-|---|---|
-| `REALFIT3D_GG_DATA_ROOT` | `DEFAULTS.data_root` |
-| `REALFIT3D_GG_OUTPUT_ROOT` | `DEFAULTS.output_root` |
-| `REALFIT3D_GG_AUX_ROOT` | `DEFAULTS.aux_root` |
-
-原本需要編輯程式內的路徑 placeholder，現在可由環境變數覆蓋，
-讓不同機器不必修改同一份共用程式。保留原版 fallback 路徑、
-輸入與輔助資料目錄的存在性檢查。
-部署前需準備對應資產目錄與執行環境。
-
-### 2.3 模擬輸入檢查
-
-檔案：[inference.py](inference.py) 的 `Simulation`。
-
-新增檢查會拒絕：
-
-- 衣物名稱清單為空，或名稱不是字串、為空字串、為 `.`／`..`、包含路徑分隔符。
-- 預測軌跡為空，或任一幀頂點數不等於依衣物排列讀取的 UV templates 頂點總數。
-- 衣物 `pred` 與人體 `obstacle` 的幀數不同。
-
-這些檢查在渲染前拒絕數量不相容的輸入。資產準備時還需核對衣物順序、
-面索引、座標慣例與外觀 checkpoint。檢查發生在讀取 pickle 之後；
-pickle 反序列化可執行程式碼，因此輸入僅接受可信來源。
-
-## 3. 明確沒有採用的修改
-
-- 交接版依檔名猜衣物名稱的 fallback：可能選錯外觀 checkpoint。
-  RealFit3D worker 改由資料明確提供 garment names。
-- 無關的 inference 計時變更與全域 bake 預設修改：
-  預覽採樣設定只留在新增渲染入口。
-- 實驗性的 LBS／ICP pose transfer 保留為獨立研究路徑。
-- 透明度 V3 與遠端訓練修改將先進行來源比對與相容性驗證，再接入此 fork。
-
-## 4. 各階段涵蓋範圍
-
-| 階段 | 目前狀態 | 待確認／驗證 |
-|---|---|---|
-| S1 幾何重建 | 此 fork 保留原版算法；RealFit3D 另引用固定版本 ActorsHQ／GS2Mesh 及交接品質工具 | 遠端重建改動、實際採用的輸入；不是每個品質工具都已自動接入 |
-| S2 registration | 原版 GG 訓練程式 | 比對遠端小組程式、啟動設定與輸出 |
-| S3 外觀 | 原版 GG 訓練程式，未合併 V3 controller | 稽核並整合已找到的透明度實作與相容資產 |
-| S4 動態 | 不在此 fork；RealFit3D 包裝 ContourCraft 轉換與訓練 | 實際生效設定與 GPU 行為 |
-| 線上身形適配 | 交接 fitting／pin workers 位於 RealFit3D | 與既有部署使用相同真實資產比較 |
-| 渲染 | 已加入上述交接入口、路徑設定與輸入檢查 | 畫質、效能及完整網站產出流程 |
-
-## 5. 透明度 V3 接入進度
-
-2026-10-20 唯讀檢查遠端 `iismtl5197096_actor1267_delivery_20261020` 交付時：
-
-- 找到並閱讀 `opacity_controller_v3_common.py` 中的 `SplineOpacityController`。
-- 讀到 `inference_opacity.py` 的 V3 載入與 rasterization 前 opacity 控制分支。
-- 確認 Actor02 上下衣 `controller.pt` 存在並計算雜湊；
-  沒有反序列化權重或執行 GPU 測試。
-
-交付 manifest 指定 Actor02 使用 learned V3；
-Actor01／06／07 使用 direct opacity。
-目前交付入口每次推論只提供一個全域 opacity 值，不是上下衣各自獨立控制。
-
-GitHub 透明度 repo 提供研究說明與 actor scripts；
-遠端交付提供 V3 原始碼與 Actor02 controller 檔案。
-接入前將完成程式比對與資產相容性檢查。
-路徑與雜湊見 [遠端發現紀錄](https://github.com/CasualBrave/realfit3d/blob/main/docs/REMOTE_DISCOVERY_20261020.md)。
-
-## 6. 驗證與後續維護
-
-已完成原始碼版本檢查及主專案 CPU／瀏覽器測試。
-GPU 驗收待執行，將以相同輸入比較既有流程與整合版的軌跡、
-圖片／影片、耗時及峰值記憶體。
-
-本機檢視實際差異：
-
-```bash
-git diff --stat ceb66fc36598da05b3b3391f4562cdc54d2a2ed2 HEAD
-git diff ceb66fc36598da05b3b3391f4562cdc54d2a2ed2 HEAD -- inference.py utils/defaults.py
+```text
+人體與衣物軌跡 + UV 模板 + Stage 3 外觀 checkpoint
+    → GG 渲染
+    → 多角度 PNG 或動畫影格
+    → RealFit3D 網頁預覽與影片
 ```
 
-後續每項採用的修改，都要同步更新中英文文件，記錄來源檔案／commit 或雜湊、
-目的、行為改變、採用狀態與測試。遠端既有小組資料只讀；
-程式修改與 push 在本機進行，遠端實驗須另行通知，
-並限定在 `/home/vtongroup/lin/` 工作目錄。
+此 fork 以 [eth-ait/Gaussian-Garments](https://github.com/eth-ait/Gaussian-Garments)
+的 `ceb66fc36598da05b3b3391f4562cdc54d2a2ed2` 為基準，
+由 RealFit3D 透過 `upstream/Gaussian-Garments` submodule 固定版本。
+以下修改集中在渲染入口、路徑設定與輸入檢查；
+此版本的 S1 重建、S2 registration、S3 訓練算法維持原版。
+
+## 模擬結果如何變成衣物圖片
+
+每一幀先讀入模擬算出的衣物頂點與人體位置。GG 讓附著於衣物表面的
+Gaussians 隨 mesh 變形，再用 Blender 將當前幾何資訊轉成兩張 UV 貼圖：
+AO 貼圖描述衣物受到周圍表面遮蔽的程度，normal 貼圖記錄衣物表面的朝向。
+訓練好的 AvatarNet 讀取這兩張貼圖和相機資訊，更新衣物外觀。
+最後計算哪些 Gaussians 可見，將它們光柵化成像素，再與人體影像合成。
+
+```text
+當前幀的 mesh → UV 遮蔽／法線貼圖 → AvatarNet 更新外觀
+             → 可見性計算與 Gaussian 光柵化 → 人體與衣物合成圖
+```
+
+這個階段使用已訓練好的 Stage 3 checkpoint，每幀只進行推論。
+
+### 只輸出最終畫面
+
+[render_lean.py](render_lean.py) 保留 `inference.py` 的幾何處理與外觀模型，
+只渲染網站需要的最終合成圖。原版入口還會另外渲染 raw／style 比較畫面，
+並拼成診斷圖片；我們省去這些額外畫面及拼接工作，輸出動畫需要的逐幀圖片。
+
+在此 repo 目錄內，使用 GG 的 Python 環境並設定好資料路徑後執行：
+
+```bash
+python render_lean.py \
+  --traj_path /path/to/trajectory.pkl \
+  --output_path /path/to/new-render-directory \
+  --bake-samples 4
+```
+
+輸出是一系列影格圖片，接著由 RealFit3D 的預覽 worker 組成 MP4。
+
+### 同一幀產生多角度預覽
+
+[render_turntable.py](render_turntable.py) 選定模擬中的一幀，
+固定衣物姿勢，再讓相機繞著人體拍攝。不同角度共用同一份 mesh 與 UV 貼圖，
+因此可重用已產生的幾何與烘焙檔案；相機改變後，仍會重新計算外觀、
+可見性及光柵化，得到各角度的圖片。
+
+```bash
+python render_turntable.py \
+  --traj_path /path/to/trajectory.pkl \
+  --output_path /path/to/new-turntable-directory \
+  --frame_idx 4 --n-angles 12 --bake-samples 4
+```
+
+這組 PNG 供網站顯示穿搭的多角度預覽，完整動作影片則在後續產生。
+
+### 烘焙採樣數的用途
+
+Blender 的烘焙步驟把當前 3D 表面的資訊存成 UV 貼圖，供 AvatarNet 使用。
+`--bake-samples` 控制這個步驟使用的 Cycles 採樣數。
+新增入口預設為 4，原版 `inference.py` 為 16；降低設定會減少烘焙採樣量，
+也可能增加 AO 貼圖的雜訊。貼圖維持模型使用的 512 × 512 大小。
+這個參數只調整渲染準備工作，不會改變衣物模擬或重新訓練模型。
+
+## 如何指定資料與模型
+
+我們在 [utils/defaults.py](utils/defaults.py) 加入環境變數設定，
+讓 RealFit3D 依部署位置指定輸入、衣物資產與輔助模型，不必逐台修改 GG 程式。
+
+| 變數 | 對應內容 |
+|---|---|
+| `REALFIT3D_GG_DATA_ROOT` | GG 輸入資料 |
+| `REALFIT3D_GG_OUTPUT_ROOT` | 重建後的衣物資產與訓練好的外觀 checkpoint |
+| `REALFIT3D_GG_AUX_ROOT` | 輔助模型與資料 |
+
+Renderer 依衣物名稱讀取資產目錄中的 `stage1/template_uv.obj`、
+`stage1/cameras.json` 與 `stage3/ckpt/net.pt`；
+新渲染的圖片則寫入指令指定的 `--output_path`。
+
+## 如何確認模擬軌跡能交給 GG
+
+多件衣物的頂點會放在同一份軌跡裡，`garment_names` 的排列順序決定每段頂點
+對應哪件衣物的 UV 模板與外觀模型。`Simulation` 在渲染前檢查名稱是否合法、
+預測序列是否為空、每幀頂點總數是否符合模板，以及人體與衣物幀數是否一致。
+輸入不相容時，程式會先回報錯誤。
+
+衣物名稱由模擬 worker 明確寫入，取代依軌跡檔名猜測的方式。
+資產準備時仍需對齊面／UV 索引與座標慣例。
+由於 pickle 會先反序列化再進行上述檢查，檔案須來自可信來源。
+
+## 透明度控制
+
+小組的另一套透明度執行程式是在 Gaussian 光柵化前調整 opacity。
+`direct` 模式直接將每顆 Gaussian 的原始 opacity 乘上控制值。
+V3 則把原始 opacity 與正規化後的初始位置送入小型神經網路，
+產生八個正值且總和為一的權重。這些權重組成隨控制值單調變化的分段線性函數，
+再用函數輸出調整每顆 Gaussian 的 opacity，交給原有光柵化步驟產生畫面。
+
+目前交付設定中，Actor02 使用 learned V3，Actor01／06／07 使用 direct。
+我們已定位 V3 程式與 Actor02 controller 權重；此 fork 尚未包含它們。
+訓練程式查核與接入工作另記於維護紀錄。
+
+## 版本與測試
+
+渲染入口、路徑設定與輸入檢查由 `8a52dc6` 引入。
+已完成來源版本檢查及 RealFit3D CPU／瀏覽器測試；
+完整 GPU 渲染驗收待執行。
+
+版本更新方式見 [RealFit3D 開發流程](https://github.com/CasualBrave/realfit3d/blob/main/docs/DEVELOPMENT.md)。
