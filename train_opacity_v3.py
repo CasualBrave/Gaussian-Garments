@@ -17,6 +17,7 @@ import torch
 
 from diff_gaussian_rasterization_depth_alpha import GaussianRasterizationSettings, GaussianRasterizer
 from opacity_controller_v3_common import K_BINS, SplineOpacityController, save_v3
+from opacity_training_cameras import TrainingCameras
 from scene import AvatarGaussianModel, AvatarNet
 from scene.cameras import Camera
 from utils.defaults import DEFAULTS
@@ -28,39 +29,18 @@ class TrainingData:
     def __init__(self, subject, sequence, cameras, render_scale, camera_names=None):
         self.data = Path(DEFAULTS.data_root) / subject / sequence
         self.stage2 = Path(DEFAULTS.output_root) / subject / DEFAULTS.stage2 / sequence
-        camera_json = self.data / "cameras.json"
-        if not camera_json.exists():
-            camera_json = self.stage2 / "cameras.json"
-        self.params = json.loads(camera_json.read_text())
-        available = sorted(name for name in self.params if (self.data / name).is_dir())
-        if not available:
-            raise ValueError("No calibrated camera image directories")
-        self.names = [available[i] for i in np.linspace(0, len(available) - 1, min(cameras, len(available)), dtype=int)]
-        if camera_names:
-            if len(set(camera_names)) != len(camera_names) or not set(camera_names) <= set(available):
-                raise ValueError("Camera names must be unique calibrated image directories")
-            self.names = camera_names
-        self.render_scale = render_scale
+        self.camera_source = TrainingCameras(self.data, self.stage2,
+            Path(DEFAULTS.output_root) / subject / 'stage1', cameras, render_scale, camera_names)
+        self.names = self.camera_source.names
         self.frames, self.cameras = {}, {}
 
     def camera(self, name):
         if name not in self.cameras:
-            images = sorted((self.data / name).rglob("*.png"))
-            if not images:
-                raise FileNotFoundError(f"No PNG image for camera {name}")
-            with Image.open(images[0]) as image:
-                width, height = image.size
-            width, height = max(1, round(width * self.render_scale)), max(1, round(height * self.render_scale))
-            params = self.params[name]
-            intrinsic = np.array(params["intrinsics"], dtype=float)
-            intrinsic[:2] *= self.render_scale
-            extrinsic = np.array(params["extrinsics"])
-            fx, fy, cx, cy = intrinsic[0, 0], intrinsic[1, 1], intrinsic[0, 2], intrinsic[1, 2]
+            params = self.camera_source.parameters(name)
+            width, height = params.pop('width'), params.pop('height')
             self.cameras[name] = Camera(
-                R=extrinsic[:3, :3].T, T=extrinsic[:3, 3],
-                FoVx=focal2fov(fx, width), FoVy=focal2fov(fy, height),
-                fx=fx, fy=fy, cx=cx, cy=cy, colmap_id=None, image_name=name,
-                uid=params.get("ids", name), image=torch.zeros(3, height, width),
+                **params, FoVx=focal2fov(params['fx'], width), FoVy=focal2fov(params['fy'], height),
+                colmap_id=None, image_name=name, image=torch.zeros(3, height, width),
                 gt_alpha_mask=torch.zeros(1, height, width), data_device="cuda",
             )
         return self.cameras[name]
@@ -177,6 +157,7 @@ def main(argv=None):
     config = dict(subject=args.subject, sequence=args.sequence, stage3_epoch=int(epoch),
                   stage3_sha256=digest.hexdigest(), train_frames=args.train_frames,
                   validation_frames=args.validation_frames, camera_names=data.names,
+                  camera_source=data.camera_source.provenance,
                   steps=args.steps, learning_rate=args.lr, render_scale=args.render_scale,
                   seed=args.seed, bins=K_BINS, s_sampling=[.05, .95],
                   loss_weights=dict(cal=1, reg=.001))

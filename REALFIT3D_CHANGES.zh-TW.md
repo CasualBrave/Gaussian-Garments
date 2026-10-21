@@ -125,6 +125,27 @@ point cloud、AO／normal 貼圖、相機校正資料與影像尺寸，以及 St
 損失為前景加權 alpha L1，加上 `0.001 * mean((p - 1/8)^2)` 正則項。
 產出 `controller.pt`、設定、訓練紀錄及驗證指標；已存在的輸出目錄不會被覆寫。
 
+相機讀取器將完整校正字典與 Stage 2 視角清單結合：字典提供焦距、主點、
+世界座標到相機座標的變換，以及影像尺寸；清單限定可參與訓練的配準視角。
+程式先逐一比較清單與校正資料的尺寸、焦距和姿態，再選出最多八台訓練相機，
+用於渲染 alpha 目標與 controller 預測圖。這一步不使用原始 RGB 照片作為訓練目標。
+
+完整校正資料依序取自 `<data_root>/<subject>/<sequence>/cameras.json`、
+Stage 2 的完整校正字典，或 `<output_root>/<subject>/stage1/cameras.json`。
+校正資料含 `shape: [height, width]` 且有 Stage 2 視角清單時，不需要原始影像目錄。
+舊資料缺少 `shape` 時，會讀 PNG／JPEG 取得尺寸；沒有 Stage 2 清單時，
+則由具有校正資料的影像目錄決定可用視角。單獨的渲染相機清單無法還原主點。
+訓練設定會記錄校正與清單的路徑及 SHA256。設定中的 data 與 auxiliary 根目錄仍須存在。
+
+以下檢查只使用 CPU，不匯入 Torch 或載入 checkpoint：
+
+```bash
+python opacity_training_cameras.py \
+  --data-dir /data/Actor02_upper/Sequence1 \
+  --stage1-dir /assets/Actor02_upper/stage1 \
+  --stage2-dir /assets/Actor02_upper/stage2/Sequence1
+```
+
 ```bash
 python train_opacity_v3.py --subject Actor02_upper --sequence Sequence1
 python render_turntable.py \

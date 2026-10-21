@@ -145,6 +145,32 @@ The loss is foreground-weighted alpha L1 plus `0.001 * mean((p - 1/8)^2)`.
 It saves `controller.pt`, the configuration, training log, and validation metrics.
 Existing output directories are rejected.
 
+The camera reader combines a full calibration dictionary with the Stage 2
+view list. Calibration supplies the focal lengths, principal point,
+world-to-camera transform, and image shape; the list limits training to the
+registered views. It checks each listed view's dimensions, focal lengths and
+pose against that calibration before selecting up to eight training cameras.
+The resulting cameras render the alpha targets and controller predictions.
+RGB photos are not training targets for this step.
+
+Calibration is read from `<data_root>/<subject>/<sequence>/cameras.json`, then
+a full Stage 2 calibration dictionary, then `<output_root>/<subject>/stage1/cameras.json`.
+With calibration `shape: [height, width]` and a Stage 2 view list, no input image
+directory is needed. Legacy inputs without `shape` use a PNG/JPEG for dimensions;
+without a Stage 2 list, calibrated image directories define the available views.
+A rendering-camera list alone cannot recover the principal point. Training
+configuration records the calibration and selection paths and SHA256 hashes.
+The configured data and auxiliary root directories must still exist.
+
+Check cameras on CPU, without importing Torch or loading checkpoints:
+
+```bash
+python opacity_training_cameras.py \
+  --data-dir /data/Actor02_upper/Sequence1 \
+  --stage1-dir /assets/Actor02_upper/stage1 \
+  --stage2-dir /assets/Actor02_upper/stage2/Sequence1
+```
+
 ```bash
 python train_opacity_v3.py --subject Actor02_upper --sequence Sequence1
 python render_turntable.py \
